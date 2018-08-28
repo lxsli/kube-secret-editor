@@ -5,6 +5,7 @@ import subprocess
 import sys
 
 import yaml
+from pathlib import Path
 
 
 EDITOR = os.environ.get('EDITOR', 'vi')
@@ -40,40 +41,25 @@ def repr_str(dumper, data):
     return dumper.orig_represent_str(data)
 
 
-def decode(secret):
-    if 'data' in secret:
-        secret['data'] = {
-            k: base64.b64decode(v).decode('utf8')
-            for k, v in secret['data'].items()
-        }
-    return secret
+def get_vals():
+    path = Path.home() / ".ksecretvals"
+    with path.open() as fid:
+        vals = yaml.load(fid, Loader=NoDatesSafeLoader)
+    return vals
 
 
-def encode(secret):
-    if 'data' in secret:
-        secret['data'] = {
-            k: base64.b64encode(v.encode())
-            for k, v in secret['data'].items()
-        }
-    return secret
-
-
-def edit(fname):
+def edit(fname, vals):
     with open(fname, 'r') as fid:
         secret = yaml.load(fid, Loader=NoDatesSafeLoader)
-        decoded = decode(secret)
+
+    if 'data' in secret:
+        secret['data'] = {
+            k: base64.b64encode(vals[k].encode()) if k in vals else v
+            for k, v in secret['data'].items()
+        }
 
     with open(fname, 'w') as fid:
-        fid.write(yaml.safe_dump(decoded, default_flow_style=False))
-
-    subprocess.call(EDITOR.split() + [fname])
-
-    with open(fname, 'r') as fid:
-        edited = yaml.load(fid, Loader=NoDatesSafeLoader)
-        encoded = encode(edited)
-
-    with open(fname, 'w') as fid:
-        fid.write(yaml.safe_dump(encoded, default_flow_style=False))
+        fid.write(yaml.safe_dump(secret, default_flow_style=False))
 
 
 def main():
@@ -81,7 +67,9 @@ def main():
     yaml.SafeDumper.orig_represent_str = yaml.SafeDumper.represent_str
     yaml.add_representer(str, repr_str, Dumper=yaml.SafeDumper)
     fname = sys.argv[1]
-    edit(fname)
+
+    vals = get_vals()
+    edit(fname, vals)
 
 
 if __name__ == '__main__':
