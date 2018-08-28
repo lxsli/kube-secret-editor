@@ -43,6 +43,9 @@ def repr_str(dumper, data):
 
 def get_vals():
     path = Path.home() / ".ksecretvals"
+    if not path.exists():
+        print("No %s found" % path)
+        raise SystemExit(1)
     with path.open() as fid:
         vals = yaml.load(fid, Loader=NoDatesSafeLoader)
     return vals
